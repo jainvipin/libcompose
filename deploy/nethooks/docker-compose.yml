@@ -1,0 +1,8 @@
+web:
+  image: jainvipin/web
+  ports:
+   - "5000:5000"
+  links:
+   - redis
+redis:
+  image: jainvipin/redis
