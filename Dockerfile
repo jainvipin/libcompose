@@ -62,4 +62,4 @@ ENV DOCKER_CROSSPLATFORMS \
 # Wrap all commands in the "docker-in-docker" script to allow nested containers
 ENTRYPOINT ["script/dind"]
 
-COPY . /go/src/github.com/docker/libcompose
+# COPY . /go/src/github.com/docker/libcompose

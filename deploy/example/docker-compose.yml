@@ -1,8 +1,12 @@
 web:
   image: web
+  net: public
+  labels:
+    io.contiv.policy: WebDefault
   ports:
    - "5000:5000"
   links:
    - redis
 redis:
   image: redis
+  net: public

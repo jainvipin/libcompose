@@ -1,0 +1,28 @@
+{
+	"UserPolicy" : [
+
+		{ "User":"admin",   
+                  "Networks": "all",
+		  "NetworkPolicies" : "all",
+		  "DefaultPolicy": "TrustApp" },
+
+		{ "User":"vagrant", 
+		  "Networks": "test,dev",
+		  "NetworkPolicies" : "TrustApp,RedisDefault,WebDefault",
+		  "DefaultPolicy": "TrustApp"}
+	],
+
+	"NetworkPolicy" : [
+		{ "Name":"AllPriviliges", 
+		  "Rules": ["permit all"]},
+
+		{ "Name":"RedisDefault", 
+		  "Rules": ["permit tcp/6379", "permit tcp/5001"] },
+
+		{ "Name":"WebDefault", 
+		  "Rules": ["permit tcp/80", "permit icmp" ] },
+
+		{ "Name":"TrustApp",
+		  "Rules": ["permit app"] }
+	]
+}

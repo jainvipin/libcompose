@@ -6,6 +6,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	contivClient "github.com/contiv/contivmodel/client"
+	"github.com/docker/go-connections/nat"
+	"github.com/docker/libcompose/deploy/ops"
+	"github.com/docker/libcompose/config"
 	"github.com/docker/libcompose/project"
 	"github.com/docker/libcompose/yaml"
 )
@@ -49,9 +52,13 @@ func getTenantName(labels map[string]string) string {
 	return tenantName
 }
 
-func getNetworkName(labels map[string]string) string {
-	networkName := NETWORK_DEFAULT
-	if labels != nil {
+func getNetworkName(svc *config.ServiceConfig) string {
+	networkName := svc.Net
+	if svc.Net == "" {
+		networkName = NETWORK_DEFAULT
+	}
+
+	if labels := svc.Labels.MapParts(); labels != nil {
 		if value, ok := labels[NET_LABEL]; ok {
 			networkName = value
 		}
@@ -59,12 +66,15 @@ func getNetworkName(labels map[string]string) string {
 	return networkName
 }
 
-func getFullSvcName(p *project.Project, svcName string) string {
+func getFullSvcName(p *project.Project, netName, svcName string) string {
 	if p == nil {
 		return svcName
 	}
 
-	return p.Name + "_" + svcName + "." + NETWORK_DEFAULT
+	if netName == "" {
+		netName = NETWORK_DEFAULT
+	}
+	return p.Name + "_" + svcName + "." + netName
 }
 
 func getSvcName(p *project.Project, svcName string) string {
@@ -222,13 +232,23 @@ func addPolicy(tenantName, policyName string) error {
 	return nil
 }
 
+func getNetworkNameFromProject(p *project.Project) string {
+	for _, svcName := range p.Configs.Keys() {
+		svc, _ := p.Configs.Get(svcName)
+		if svc.Net != "" {
+			return svc.Net
+		}
+	}
+	return NETWORK_DEFAULT
+}
+
 func addApp(tenantName string, p *project.Project) error {
 
 	log.Debugf("Add App '%s':'%s' ", tenantName, p.Name)
 	app := &contivClient.AppProfile{
 		AppProfileName: p.Name,
 		TenantName: tenantName,
-		NetworkName: NETWORK_DEFAULT,
+		NetworkName: getNetworkNameFromProject(p),
 	}
 
 	for _, svcName := range p.Configs.Keys() {
@@ -238,7 +258,7 @@ func addApp(tenantName string, p *project.Project) error {
 	}
 
 	if err := cl.AppProfilePost(app); err != nil {
-		log.Errorf("Unable to post app to netmaster. Error: %v", err)
+		log.Debugf("Unable to post app to netmaster. Error: %v", err)
 		return err
 	}
 
@@ -249,8 +269,8 @@ func deleteApp(tenantName string, p *project.Project) error {
 
 	log.Debugf("Deleting App '%s':'%s' ", tenantName, p.Name)
 
-	if err := cl.AppProfileDelete(tenantName, NETWORK_DEFAULT, p.Name); err != nil {
-		log.Errorf("Unable to post app delete to netmaster. Error: %v", err)
+	if err := cl.AppProfileDelete(tenantName, getNetworkNameFromProject(p), p.Name); err != nil {
+		log.Debugf("Unable to post app delete to netmaster. Error: %v", err)
 		return err
 	}
 
@@ -278,7 +298,7 @@ func addEpgs(p *project.Project) error {
 	for _, svcName := range p.Configs.Keys() {
 		svc, _ := p.Configs.Get(svcName)
 		tenantName := getTenantName(svc.Labels.MapParts())
-		networkName := getNetworkName(svc.Labels.MapParts())
+		networkName := getNetworkName(svc)
 		epgName := getSvcName(p, svcName)
 
 		if err := addEpg(tenantName, networkName, epgName, []string{}); err != nil {
@@ -293,7 +313,7 @@ func applyDefaultPolicy(p *project.Project, polRecs map[string]policyCreateRec) 
 	for _, svcName := range p.Configs.Keys() {
 		svc, _ := p.Configs.Get(svcName)
 		tenantName := getTenantName(svc.Labels.MapParts())
-		networkName := getNetworkName(svc.Labels.MapParts())
+		networkName := getNetworkName(svc)
 		toEpgName := getSvcName(p, svcName)
 
 		if pR, ok := polRecs[svcName]; ok {
@@ -358,7 +378,7 @@ func applyExposePolicy(p *project.Project, expMap map[string][]string, polRecs m
 	tenantName := "default"
 	for toSvcName, spList := range expMap {
 		svc, _ := p.Configs.Get(toSvcName)
-		networkName := getNetworkName(svc.Labels.MapParts())
+		networkName := getNetworkName(svc)
 		policyRec := getPolicyRec(toSvcName, polRecs)
 		ruleID := policyRec.nextRuleId
 		policyName := getInPolicyStr(p.Name, toSvcName)
@@ -398,12 +418,80 @@ func applyExposePolicy(p *project.Project, expMap map[string][]string, polRecs m
 	return nil
 }
 
+func getPolicyName(userId string, svc *config.ServiceConfig) (string, error) {
+	var err error
+
+	policyName := ""
+
+	if labels := svc.Labels.MapParts(); labels != nil {
+		if value, ok := labels[POLICY_LABEL]; ok {
+			policyName = value
+		}
+	}
+
+	if policyName == "" {
+		policyName, err = ops.UserOpsGetDefaultNetworkPolicy(userId)
+		if err != nil {
+			log.Errorf("Unable to find find default policy: %s", err)
+			return policyName, err
+		}
+		log.Infof("Using default policy '%s'...", policyName)
+	}
+
+	if err = ops.UserOpsCheckNetworkPolicy(userId, policyName); err != nil {
+		log.Errorf("User '%s' not allowed to use policy '%s'", userId, policyName)
+		return "", err
+	}
+
+	return policyName, nil
+}
+
+func getServicePorts(svcName string, svc *config.ServiceConfig) ([]nat.Port, error) {
+
+	userId, err := getSelfId()
+	if err != nil {
+		log.Errorf("Unable to identify self: %s", err)
+		return []nat.Port{}, err
+	}
+
+	policyName, err := getPolicyName(userId, svc)
+	if err != nil {
+		log.Errorf("Error obtaining policy : %s ", err)
+		return []nat.Port{}, err
+	}
+
+	policyPorts, err := ops.GetRules(policyName)
+	if err != nil {
+		log.Errorf("Unable to get rules for policy '%s': %s", policyName, err)
+		return []nat.Port{}, err
+	}
+
+	log.Infof("User '%s': applying '%s' to service '%s'", userId, policyName, svcName)
+
+	natPorts := []nat.Port{}
+	for _, policyPort := range policyPorts {
+		// borrow port information from the app
+		if policyPort.Proto() == "app" {
+			natPorts1, err := getImageInfo(svc.Image)
+			if err != nil {
+				log.Errorf("Unable to auto fetch port/protocol information. Error %v", err)
+				return []nat.Port{}, err
+			}
+			natPorts = append(natPorts, natPorts1...)
+		} else {
+			natPorts = append(natPorts, policyPort)
+		}
+	}
+
+	return natPorts, nil
+}
+
 func applyInPolicy(p *project.Project, fromSvcName, toSvcName string, polRecs map[string]policyCreateRec) error {
 	svc,_ := p.Configs.Get(toSvcName)
 
 	policyRec := getPolicyRec(toSvcName, polRecs)
 	tenantName := getTenantName(svc.Labels.MapParts())
-	networkName := getNetworkName(svc.Labels.MapParts())
+	networkName := getNetworkName(svc)
 	toEpgName := getSvcName(p, toSvcName)
 
 	policyName := getInPolicyStr(p.Name, toSvcName)
@@ -412,9 +500,16 @@ func applyInPolicy(p *project.Project, fromSvcName, toSvcName string, polRecs ma
 	ruleID := policyRec.nextRuleId
 	policies := []string{}
 
-	imageInfoList, err := getImageInfo(toSvcName)
+	natPorts, err := getServicePorts(toSvcName, svc)
 	if err != nil {
-		log.Infof("Unable to auto fetch port/protocol information. Error %v", err)
+		return err
+	}
+
+	for _, natPort := range natPorts {
+		if natPort.Proto() == "all" {
+			log.Infof("Allowing all traffic to service '%s'", toSvcName)
+			return nil
+		}
 	}
 
 	log.Debugf("Creating network objects to service '%s': Tenant: %s Network %s", toSvcName, tenantName, networkName)
@@ -430,9 +525,9 @@ func applyInPolicy(p *project.Project, fromSvcName, toSvcName string, polRecs ma
 	}
 	ruleID++
 
-	for _, imageInfo := range imageInfoList {
-		pNum, _ := strconv.Atoi(imageInfo.Port())
-		if err := addInAcceptRule(tenantName, networkName, fromEpgName, policyName, imageInfo.Proto(), pNum, ruleID); err != nil {
+	for _, natPort := range natPorts {
+		pNum, _ := strconv.Atoi(natPort.Port())
+		if err := addInAcceptRule(tenantName, networkName, fromEpgName, policyName, natPort.Proto(), pNum, ruleID); err != nil {
 			log.Errorf("Unable to add allow rule. Error %v ", err)
 			return err
 		}
@@ -461,7 +556,7 @@ func removePolicy(p *project.Project, svcName, dir string) error {
 	}
 
 	if err := cl.PolicyDelete(tenantName, policyName); err != nil {
-		log.Errorf("Unable to delete '%s' policy. Error: %v", policyName, err)
+		log.Debugf("Unable to delete '%s' policy. Error: %v", policyName, err)
 	}
 
 	return nil
@@ -472,11 +567,11 @@ func removeEpg(p *project.Project, svcName string) error {
 
 	log.Debugf("Deleting Epg for service '%s' ", svcName)
 	tenantName := getTenantName(svc.Labels.MapParts())
-	networkName := getNetworkName(svc.Labels.MapParts())
+	networkName := getNetworkName(svc)
 	epgName := getSvcName(p, svcName)
 
 	if err := cl.EndpointGroupDelete(tenantName, networkName, epgName); err != nil {
-		log.Errorf("Unable to delete '%s' epg. Error: %v", epgName, err)
+		log.Debugf("Unable to delete '%s' epg. Error: %v", epgName, err)
 	}
 
 	return nil
