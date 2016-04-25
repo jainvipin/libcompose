@@ -20,8 +20,13 @@ func TestUserPolicy(t *testing.T) {
     jsonData := []byte(`
 			{
 			"UserPolicy" : [
-					{ "User":"admin",   "Networks": "all" },
-					{ "User":"vagrant", "Networks": "test,dev" }
+					{ "User":"admin", 
+                      "DefaultTenant" : "foo",
+					  "Networks": "all" },
+					{ "User":"vagrant", 
+					  "DefaultTenant" : "bar",
+					  "Networks": "test,dev",
+					  "DefaultNetwork" : "dev" }
 				]
 			}
 		`)
@@ -46,10 +51,12 @@ func TestUserPolicy(t *testing.T) {
     jsonData = []byte(`
 			{
 			"UserPolicy" : [
-					{ "User":"admin", 
-					  "NetworkPolicies": "all", "DefaultNetworkPolicy":"allowall"},
+					{ "User":"admin",
+					  "NetworkPolicies": "all",
+					  "DefaultNetworkPolicy":"allowall"},
 					{ "User":"vagrant", 
-					  "NetworkPolicies": "app1,app2", "DefaultNetworkPolicy":"trustapp" } ],
+					  "NetworkPolicies": "app1,app2,trustapp",
+					  "DefaultNetworkPolicy":"trustapp" } ],
 			"NetworkPolicy" : [
 					{ "Name":"trustapp", "Rules": ["permit app"] },
 					{ "Name":"allowall", "Rules": ["permit all"] },
@@ -87,6 +94,35 @@ func TestUserPolicy(t *testing.T) {
 	} else if defPolicy != "trustapp" {
 		t.Fatalf("got invalid default policy for the user")
 	}
+
+    jsonData = []byte(`
+			{
+			"UserPolicy" : [
+				{ "User":"fake",
+				  "Networks": "test, dev",
+				  "DefaultNetwork": "none"
+				} ]
+			}
+		`)
+	writeTmpData(t, jsonData)
+	if err := loadOpsWithFile(tmpFile); err == nil {
+		t.Fatalf("successfully loaded config with invalid default network")
+	}
+
+    jsonData = []byte(`
+			{
+			"UserPolicy" : [
+				{ "User":"fake",
+				  "NetworkPolicies" : "one, two, three",
+				  "DefaultNetworkPolicy" : "four" }
+				]
+			}
+		`)
+	writeTmpData(t, jsonData)
+	if err := loadOpsWithFile(tmpFile); err == nil {
+		t.Fatalf("successfully loaded config with invalid default network policy")
+	}
+
 }
 
 func TestNetworkPolicy(t *testing.T) {

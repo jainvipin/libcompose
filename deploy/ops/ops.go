@@ -2,7 +2,6 @@
 package ops
 
 import (
-	"os"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -12,13 +11,11 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-const (
-	cfgFile = "src/github.com/docker/libcompose/deploy/example/ops.json"
-)
-
 type UserPolicyInfo struct {
 	User string
+	DefaultTenant string
 	Networks string
+	DefaultNetwork string
 	NetworkPolicies string
 	DefaultNetworkPolicy string
 }
@@ -28,7 +25,13 @@ type NetworkPolicyInfo struct {
 	Rules []string
 }
 
+type LabelMapInfo struct {
+	Tenant string
+	NetworkIsolationPolicy string
+}
+
 type opsPolicy struct {
+	LabelMap LabelMapInfo
 	UserPolicy []UserPolicyInfo
 	NetworkPolicy []NetworkPolicyInfo
 }
@@ -36,9 +39,8 @@ type opsPolicy struct {
 var ops opsPolicy
 
 func LoadOps() error {
-	composeFile := os.Getenv("GOPATH") + "/" + cfgFile
-	composeFile = "./ops.json"
-	return loadOpsWithFile(composeFile)
+	opsFile := "./ops.json"
+	return loadOpsWithFile(opsFile)
 }
 
 func loadOpsWithFile(fileName string) error {
@@ -48,12 +50,42 @@ func loadOpsWithFile(fileName string) error {
 		log.Fatalf("error reading the config file: %s", err)
 	}
 
+	ops = opsPolicy{}
 	if err := json.Unmarshal(composeBytes, &ops); err != nil {
 		log.Errorf("error unmarshaling json %#v \n", err)
 		return err
 	}
 
+	for _, policy := range ops.UserPolicy {
+		if policy.DefaultNetwork == "" {
+			continue
+		}
+		if err := UserOpsCheckNetwork(policy.User, policy.DefaultNetwork); err != nil {
+			log.Errorf("Default network '%s' not present allowed networks '%s'",
+				policy.DefaultNetwork, policy.Networks)
+			return err
+		}
+	}
+
+	for _, policy := range ops.UserPolicy {
+		if policy.DefaultNetworkPolicy == "" {
+			continue
+		}
+		if err := UserOpsCheckNetworkPolicy(policy.User, policy.DefaultNetworkPolicy); err != nil {
+			log.Errorf("Default policy not present in the allowed policies")
+			return err
+		}
+	}
+
 	return nil
+}
+
+func LabelOpsGetTenant() string {
+	return ops.LabelMap.Tenant
+}
+
+func LabelOpsGetNetworkIsolationPolicy() string {
+	return ops.LabelMap.NetworkIsolationPolicy
 }
 
 func UserOpsCheckNetwork(userName, network string) error {
@@ -69,7 +101,7 @@ func UserOpsCheckNetwork(userName, network string) error {
 		}
 	}
 
-	return errors.New("Deny unspecified user")
+	return errors.New("Deny disallowed network")
 }
 
 func UserOpsGetDefaultNetworkPolicy(userName string) (string, error) {
@@ -85,20 +117,46 @@ func UserOpsGetDefaultNetworkPolicy(userName string) (string, error) {
 	return "", errors.New("Default Policy Not Found")
 }
 
-func UserOpsCheckNetworkPolicy(userName, netPolicy string) error {
+func UserOpsGetDefaultNetwork(userName string) (string, error) {
 	for _, policy := range ops.UserPolicy {
 		if policy.User != userName {
 			continue
 		}
-		allowedNetPolicies := strings.Split(policy.NetworkPolicies, ",")
-		for _, allowedNetPolicy := range allowedNetPolicies {
-			if allowedNetPolicy == netPolicy || allowedNetPolicy == "all" {
+		if policy.DefaultNetwork != "" {
+			return policy.DefaultNetwork, nil
+		}
+	}
+
+	return "", errors.New("Default Network Not Found")
+}
+
+func UserOpsGetDefaultTenant(userName string) (string, error) {
+	for _, policy := range ops.UserPolicy {
+		if policy.User != userName {
+			continue
+		}
+		if policy.DefaultTenant != "" {
+			return policy.DefaultTenant, nil
+		}
+	}
+
+	return "", errors.New("Default Tenant Not Found")
+}
+
+func UserOpsCheckNetworkPolicy(userName, networkPolicy string) error {
+	for _, policy := range ops.UserPolicy {
+		if policy.User != userName {
+			continue
+		}
+		allowedPolicies := strings.Split(policy.NetworkPolicies, ",")
+		for _, allowedPolicy := range allowedPolicies {
+			if allowedPolicy == networkPolicy || allowedPolicy == "all" {
 				return nil
 			}
 		}
 	}
 
-	return errors.New("Deny unspecified user")
+	return errors.New("Deny disallowed policy")
 }
 
 func GetRules(policyName string) ([]nat.Port, error) {

@@ -42,10 +42,23 @@ func getOutPolicyStr(projectName, svcName string) string {
 	return projectName + "_" + svcName + "-out"
 }
 
-func getTenantName(labels map[string]string) string {
+func getTenantNameFromProject(p *project.Project) string {
+	for _, svcName := range p.Configs.Keys() {
+		svc, _ := p.Configs.Get(svcName)
+		return getTenantName(svc)
+	}
+	return ""
+}
+
+func getTenantName(svc *config.ServiceConfig) string {
 	tenantName := TENANT_DEFAULT
-	if labels != nil {
-		if value, ok := labels[TENANT_LABEL]; ok {
+
+	tenantLabel := ops.LabelOpsGetTenant()
+	if tenantLabel == "" {
+		tenantLabel = TENANT_LABEL
+	}
+	if labels := svc.Labels.MapParts(); labels != nil {
+		if value, ok := labels[tenantLabel]; ok {
 			tenantName = value
 		}
 	}
@@ -59,22 +72,32 @@ func getNetworkName(svc *config.ServiceConfig) string {
 	}
 
 	if labels := svc.Labels.MapParts(); labels != nil {
-		if value, ok := labels[NET_LABEL]; ok {
+		if value, ok := labels[NETWORK_LABEL]; ok {
 			networkName = value
 		}
 	}
 	return networkName
 }
 
-func getFullSvcName(p *project.Project, netName, svcName string) string {
-	if p == nil {
-		return svcName
+func getNetworkNameFromProject(p *project.Project) string {
+	for _, svcName := range p.Configs.Keys() {
+		svc, _ := p.Configs.Get(svcName)
+		return getNetworkName(svc)
+	}
+	return ""
+}
+
+func getFullSvcName(p *project.Project, svcName string) string {
+	svc, _ := p.Configs.Get(svcName)
+	netName := getNetworkName(svc)
+	tenantName := getTenantNameFromProject(p)
+
+	fullSvcName := p.Name + "_" + svcName + "." + netName
+	if tenantName != TENANT_DEFAULT {
+		fullSvcName = fullSvcName + "/" + tenantName
 	}
 
-	if netName == "" {
-		netName = NETWORK_DEFAULT
-	}
-	return p.Name + "_" + svcName + "." + netName
+	return fullSvcName
 }
 
 func getSvcName(p *project.Project, svcName string) string {
@@ -232,16 +255,6 @@ func addPolicy(tenantName, policyName string) error {
 	return nil
 }
 
-func getNetworkNameFromProject(p *project.Project) string {
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
-		if svc.Net != "" {
-			return svc.Net
-		}
-	}
-	return NETWORK_DEFAULT
-}
-
 func addApp(tenantName string, p *project.Project) error {
 
 	log.Debugf("Add App '%s':'%s' ", tenantName, p.Name)
@@ -295,9 +308,9 @@ func addEpg(tenantName, networkName, epgName string, policies []string) error {
 }
 
 func addEpgs(p *project.Project) error {
+	tenantName := getTenantNameFromProject(p)
 	for _, svcName := range p.Configs.Keys() {
 		svc, _ := p.Configs.Get(svcName)
-		tenantName := getTenantName(svc.Labels.MapParts())
 		networkName := getNetworkName(svc)
 		epgName := getSvcName(p, svcName)
 
@@ -310,9 +323,9 @@ func addEpgs(p *project.Project) error {
 }
 
 func applyDefaultPolicy(p *project.Project, polRecs map[string]policyCreateRec) error {
+	tenantName := getTenantNameFromProject(p)
 	for _, svcName := range p.Configs.Keys() {
 		svc, _ := p.Configs.Get(svcName)
-		tenantName := getTenantName(svc.Labels.MapParts())
 		networkName := getNetworkName(svc)
 		toEpgName := getSvcName(p, svcName)
 
@@ -375,7 +388,7 @@ func getPolicyRec(name string, polRecs map[string]policyCreateRec) policyCreateR
 
 func applyExposePolicy(p *project.Project, expMap map[string][]string, polRecs map[string]policyCreateRec) error {
 
-	tenantName := "default"
+	tenantName := getTenantNameFromProject(p)
 	for toSvcName, spList := range expMap {
 		svc, _ := p.Configs.Get(toSvcName)
 		networkName := getNetworkName(svc)
@@ -423,8 +436,13 @@ func getPolicyName(userId string, svc *config.ServiceConfig) (string, error) {
 
 	policyName := ""
 
+	policyLabel := ops.LabelOpsGetNetworkIsolationPolicy()
+	if policyLabel == "" {
+		policyLabel = NET_ISOLATION_POLICY_LABEL
+	}
+
 	if labels := svc.Labels.MapParts(); labels != nil {
-		if value, ok := labels[POLICY_LABEL]; ok {
+		if value, ok := labels[policyLabel]; ok {
 			policyName = value
 		}
 	}
@@ -490,7 +508,7 @@ func applyInPolicy(p *project.Project, fromSvcName, toSvcName string, polRecs ma
 	svc,_ := p.Configs.Get(toSvcName)
 
 	policyRec := getPolicyRec(toSvcName, polRecs)
-	tenantName := getTenantName(svc.Labels.MapParts())
+	tenantName := getTenantNameFromProject(p)
 	networkName := getNetworkName(svc)
 	toEpgName := getSvcName(p, toSvcName)
 
@@ -546,10 +564,8 @@ func applyInPolicy(p *project.Project, fromSvcName, toSvcName string, polRecs ma
 }
 
 func removePolicy(p *project.Project, svcName, dir string) error {
-	svc,_ := p.Configs.Get(svcName)
-
 	log.Debugf("Deleting policies for service '%s' ", svcName)
-	tenantName := getTenantName(svc.Labels.MapParts())
+	tenantName := getTenantNameFromProject(p)
 	policyName := getInPolicyStr(p.Name, svcName)
 	if dir == "out" {
 		policyName = getOutPolicyStr(p.Name, svcName)
@@ -566,7 +582,7 @@ func removeEpg(p *project.Project, svcName string) error {
 	svc,_ := p.Configs.Get(svcName)
 
 	log.Debugf("Deleting Epg for service '%s' ", svcName)
-	tenantName := getTenantName(svc.Labels.MapParts())
+	tenantName := getTenantNameFromProject(p)
 	networkName := getNetworkName(svc)
 	epgName := getSvcName(p, svcName)
 

@@ -1,15 +1,23 @@
 {
+	"LabelMap`" : {
+		"Tenant" : "io.contiv.tenant",
+		"NetworkIsolationPolicy" : "io.contiv.policy"
+	},
+
 	"UserPolicy" : [
 
 		{ "User":"admin",   
                   "Networks": "all",
+		  "DefaultNetwork": "dev",
 		  "NetworkPolicies" : "all",
-		  "DefaultPolicy": "TrustApp" },
+		  "DefaultNetworkPolicy": "TrustApp" },
 
 		{ "User":"vagrant", 
+		  "DefaultTenant": "default",
 		  "Networks": "test,dev",
+		  "DefaultNetwork": "dev",
 		  "NetworkPolicies" : "TrustApp,RedisDefault,WebDefault",
-		  "DefaultPolicy": "TrustApp"}
+		  "DefaultNetworkPolicy": "TrustApp" }
 	],
 
 	"NetworkPolicy" : [
@@ -17,7 +25,7 @@
 		  "Rules": ["permit all"]},
 
 		{ "Name":"RedisDefault", 
-		  "Rules": ["permit tcp/6379", "permit tcp/5001"] },
+		  "Rules": ["permit tcp/6379", "permit tcp/6378", "permit tcp/6377"] },
 
 		{ "Name":"WebDefault", 
 		  "Rules": ["permit tcp/80", "permit icmp" ] },

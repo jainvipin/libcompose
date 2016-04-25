@@ -45,6 +45,9 @@ test-integration: build ## run the integration tests
 test-acceptance: build ## run the acceptance tests
 	$(DOCKER_RUN_LIBCOMPOSE) ./script/make.sh binary test-acceptance
 
+test-deploy: 
+	go run deploy/sanity/sanity.go
+
 validate: build ## validate DCO, git conflicts marks, gofmt, golint and go vet
 	$(DOCKER_RUN_LIBCOMPOSE) ./script/make.sh validate-dco validate-git-marks validate-gofmt validate-lint validate-vet
 

@@ -1,6 +1,7 @@
 package nethooks
 
 import (
+	"errors"
 	"os"
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/libcompose/deploy/ops"
@@ -19,6 +20,11 @@ const (
 // CreateNetConfig creates network and policies in coniv-netmaster
 func CreateNetConfig(p *project.Project) error {
 	log.Debugf("Create network for the project '%s' ", p.Name)
+
+	if err := validateProject(p); err != nil {
+		os.Exit(1)
+		return err
+	}
 
 	if err := checkUserCreds(p); err != nil {
 		os.Exit(1)
@@ -44,12 +50,18 @@ func CreateNetConfig(p *project.Project) error {
 func DeleteNetConfig(p *project.Project) error {
 	log.Debugf("Delete network for the project '%s' ", p.Name)
 
+	if err := validateProject(p); err != nil {
+		os.Exit(1)
+		return err
+	}
+
 	if err := checkUserCreds(p); err != nil {
 		os.Exit(1)
 		return err
 	}
 
-	if err := deleteApp(TENANT_DEFAULT, p); err != nil {
+	tenantName := getTenantNameFromProject(p)
+	if err := deleteApp(tenantName, p); err != nil {
 		log.Debugf("Unable to delete app. Error %v", err)
 	}
 
@@ -96,24 +108,25 @@ func ScaleNetConfig(p *project.Project) error {
 // Generate Parameters: new information that was not set by users
 func AutoGenParams(p *project.Project) error {
 	networkName := getNetworkNameFromProject(p)
+	tenantName := getTenantNameFromProject(p)
 	for _, svcName := range p.Configs.Keys() {
 		svc, _ := p.Configs.Get(svcName)
 		if svc.DNS.Len() == 0 {
-			dnsAddr, err := getDnsInfo(networkName, TENANT_DEFAULT)
+			dnsAddr, err := getDnsInfo(networkName, tenantName)
 			if err != nil {
 				log.Errorf("error getting dns information for network %s: %s", networkName, err)
 			}
 
 			svc.DNS = yaml.NewStringorslice(dnsAddr)
 			if svc.DNSSearch.Len() == 0 {
-				netDomain := networkName + "." + TENANT_DEFAULT
-				tenantDomain := TENANT_DEFAULT
+				netDomain := networkName + "." + tenantName
+				tenantDomain := tenantName
 
 				svc.DNSSearch = yaml.NewStringorslice(netDomain, tenantDomain)
 			}
 		}
 
-		svc.Net = getFullSvcName(p, svc.Net, svcName)
+		svc.Net = getFullSvcName(p, svcName)
 	}
 
 	return nil
@@ -127,7 +140,7 @@ func AutoGenLabels(p *project.Project) error {
 		if labels == nil {
 			labels = make(map[string]string)
 		}
-		labels[EPG_LABEL] = svcName
+		labels[NET_ISOLATION_GROUP_LABEL] = svcName
 
 		userId, err := getSelfId()
 		if err != nil {
@@ -176,7 +189,8 @@ func applyLinksBasedPolicy(p *project.Project) error {
 		return err
 	}
 
-	if err := addApp(TENANT_DEFAULT, p); err != nil {
+	tenantName := getTenantNameFromProject(p)
+	if err := addApp(tenantName, p); err != nil {
 		log.Errorf("Unable to create app with unspecified tiers. Error %v", err)
 		return err
 	}
@@ -191,7 +205,7 @@ func applyLinksBasedPolicy(p *project.Project) error {
 	return nil
 }
 
-// Checks USer credentials to perform a given operation (move to Authz)
+// Checks User credentials to perform a given operation (move to Authz)
 func checkUserCreds(p *project.Project) error {
 	userId, err := getSelfId()
 	if err != nil {
@@ -203,6 +217,32 @@ func checkUserCreds(p *project.Project) error {
 	if err := ops.UserOpsCheckNetwork(userId, networkName); err != nil {
 		log.Errorf("User '%s' not allowed on network '%s'", userId, networkName)
 		return err
+	}
+
+	return nil
+}
+
+func validateProject(p *project.Project) error {
+	netName := getNetworkNameFromProject(p)
+
+	for _, svcName := range p.Configs.Keys() {
+		svc, _ := p.Configs.Get(svcName)
+		if getNetworkName(svc) != netName {
+			log.Errorf("Mismatching networks '%s' vs '%s' for services not allowed",
+				netName, getNetworkName(svc))
+			return errors.New("mismatching networks")
+		}
+	}
+
+	tenantName := getTenantNameFromProject(p)
+
+	for _, svcName := range p.Configs.Keys() {
+		svc, _ := p.Configs.Get(svcName)
+		if getTenantName(svc) != tenantName {
+			log.Errorf("Mismatching Tenants '%s' vs '%s' for services not allowed",
+				tenantName, getTenantName(svc))
+			return errors.New("mismatching tenants")
+		}
 	}
 
 	return nil

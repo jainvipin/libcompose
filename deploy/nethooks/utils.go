@@ -72,6 +72,7 @@ func getSelfId() (string, error) {
 }
 
 func getDnsInfo(targetNetwork, tenant string) (string, error) {
+	dnsContName := tenant + "dns"
 	if tenant != TENANT_DEFAULT {
 		targetNetwork = targetNetwork + "/" + tenant
 	}
@@ -80,10 +81,10 @@ func getDnsInfo(targetNetwork, tenant string) (string, error) {
 		return "", err
 	}
 
-	containerInfo, err := dockerCl.ContainerInspect(context.Background(), "defaultdns")
+	containerInfo, err := dockerCl.ContainerInspect(context.Background(), dnsContName)
 
 	if err != nil {
-		log.Errorf("Unable to inspect container 'defaultdns': %s", err)
+		log.Errorf("Unable to inspect container '%s': %s", dnsContName, err)
 		return "", err
 	}
 

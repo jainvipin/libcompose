@@ -1,11 +1,11 @@
 package nethooks
 
 const (
-	EPG_LABEL    = "io.contiv.epg"
-	NET_LABEL    = "io.contiv.net"
-	TENANT_LABEL = "io.contiv.tenant"
 	USER_LABEL   = "io.contiv.user"
-	POLICY_LABEL = "io.contiv.policy"
+	TENANT_LABEL = "io.contiv.tenant"
+	NETWORK_LABEL = "io.contiv.network"
+    NET_ISOLATION_GROUP_LABEL = "io.contiv.group"
+	NET_ISOLATION_POLICY_LABEL = "io.contiv.policy"
 )
 
 const (
