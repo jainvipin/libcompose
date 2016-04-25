@@ -17,6 +17,7 @@ $ cd netplugin; make demo
 
 ###### 2. Get libcompose and enter VM
 ```
+$ mkdir -p $GOPATH/src/github.com/docker
 $ cd $GOPATH/src/github.com/docker
 $ git clone https://github.com/jainvipin/libcompose
 $ cd $GOPATH/src/github.com/contiv/netplugin
@@ -93,12 +94,12 @@ Now, let's try to verify whether the isolation policy is working as expected
 $ docker exec -it example_web_1 /bin/bash
 < ** inside container ** >
 $ nc -zvw 1 example_redis 6375-6380
-example_redis.dev.blue [10.11.1.21] 6380 (?) : Connection timed out
-example_redis.dev.blue [10.11.1.21] 6379 (?) open
-example_redis.dev.blue [10.11.1.21] 6378 (?) : Connection timed out
-example_redis.dev.blue [10.11.1.21] 6377 (?) : Connection timed out
-example_redis.dev.blue [10.11.1.21] 6376 (?) : Connection timed out
-example_redis.dev.blue [10.11.1.21] 6375 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6380 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6379 (?) open
+example_redis.dev.default [10.11.1.21] 6378 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6377 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6376 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6375 (?) : Connection timed out
 
 $ exit
 < ** back to linux prompt ** >
@@ -125,12 +126,12 @@ With this now we can go into any of the web tier container and experiment our po
 $ docker exec -it example_web_3 /bin/bash
 < ** inside container ** >
 $ nc -zvw 1 example_redis 6375-6380
-example_redis.dev.blue [10.11.1.21] 6380 (?) : Connection timed out
-example_redis.dev.blue [10.11.1.21] 6379 (?) open
-example_redis.dev.blue [10.11.1.21] 6378 (?) : Connection timed out
-example_redis.dev.blue [10.11.1.21] 6377 (?) : Connection timed out
-example_redis.dev.blue [10.11.1.21] 6376 (?) : Connection timed out
-example_redis.dev.blue [10.11.1.21] 6375 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6380 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6379 (?) open
+example_redis.dev.default [10.11.1.21] 6378 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6377 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6376 (?) : Connection timed out
+example_redis.dev.default [10.11.1.21] 6375 (?) : Connection timed out
 
 $ exit
 
