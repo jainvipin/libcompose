@@ -35,11 +35,11 @@ func getRuleStr(ruleID int) string {
 }
 
 func getInPolicyStr(projectName, svcName string) string {
-	return projectName + "_" + svcName + "-in"
+	return projectName + "-" + svcName + "-in"
 }
 
 func getOutPolicyStr(projectName, svcName string) string {
-	return projectName + "_" + svcName + "-out"
+	return projectName + "-" + svcName + "-out"
 }
 
 func getTenantNameFromProject(p *project.Project) string {
@@ -88,11 +88,8 @@ func getNetworkNameFromProject(p *project.Project) string {
 }
 
 func getFullSvcName(p *project.Project, svcName string) string {
-	svc, _ := p.Configs.Get(svcName)
-	netName := getNetworkName(svc)
 	tenantName := getTenantNameFromProject(p)
-
-	fullSvcName := p.Name + "_" + svcName + "." + netName
+	fullSvcName := p.Name + "-" + svcName 
 	if tenantName != TENANT_DEFAULT {
 		fullSvcName = fullSvcName + "/" + tenantName
 	}
@@ -105,7 +102,7 @@ func getSvcName(p *project.Project, svcName string) string {
 		return svcName
 	}
 
-	return p.Name + "_" + svcName
+	return p.Name + "-" + svcName
 }
 
 func getFromEpgName(p *project.Project, fromSvcName string) string {
@@ -261,7 +258,6 @@ func addApp(tenantName string, p *project.Project) error {
 	app := &contivClient.AppProfile{
 		AppProfileName: p.Name,
 		TenantName: tenantName,
-		NetworkName: getNetworkNameFromProject(p),
 	}
 
 	for _, svcName := range p.Configs.Keys() {
@@ -282,7 +278,7 @@ func deleteApp(tenantName string, p *project.Project) error {
 
 	log.Debugf("Deleting App '%s':'%s' ", tenantName, p.Name)
 
-	if err := cl.AppProfileDelete(tenantName, getNetworkNameFromProject(p), p.Name); err != nil {
+	if err := cl.AppProfileDelete(tenantName, p.Name); err != nil {
 		log.Debugf("Unable to post app delete to netmaster. Error: %v", err)
 		return err
 	}
@@ -292,7 +288,6 @@ func deleteApp(tenantName string, p *project.Project) error {
 
 func addEpg(tenantName, networkName, epgName string, policies []string) error {
 	epg := &contivClient.EndpointGroup{
-		EndpointGroupID: 1,
 		GroupName:       epgName,
 		NetworkName:     networkName,
 		Policies:        policies,
@@ -404,7 +399,7 @@ func applyExposePolicy(p *project.Project, expMap map[string][]string, polRecs m
 			}
 			toEpgName := getSvcName(p, toSvcName)
 			policies = append(policies, policyName)
-			if err := addEpg(tenantName, networkName, toEpgName, policies); err != nil {
+			if err := addEpg(tenantName, "", toEpgName, policies); err != nil {
 				log.Errorf("Unable to add epg. Error %v", err)
 				return err
 			}
@@ -538,7 +533,7 @@ func applyInPolicy(p *project.Project, fromSvcName, toSvcName string, polRecs ma
 	}
 	policies = append(policies, policyName)
 
-	if err := addDenyAllRule(tenantName, networkName, "", policyName, ruleID); err != nil {
+	if err := addDenyAllRule(tenantName, "" , "", policyName, ruleID); err != nil {
 		return err
 	}
 	ruleID++
@@ -579,14 +574,11 @@ func removePolicy(p *project.Project, svcName, dir string) error {
 }
 
 func removeEpg(p *project.Project, svcName string) error {
-	svc,_ := p.Configs.Get(svcName)
-
 	log.Debugf("Deleting Epg for service '%s' ", svcName)
 	tenantName := getTenantNameFromProject(p)
-	networkName := getNetworkName(svc)
 	epgName := getSvcName(p, svcName)
 
-	if err := cl.EndpointGroupDelete(tenantName, networkName, epgName); err != nil {
+	if err := cl.EndpointGroupDelete(tenantName, epgName); err != nil {
 		log.Debugf("Unable to delete '%s' epg. Error: %v", epgName, err)
 	}
 
