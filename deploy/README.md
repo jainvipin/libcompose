@@ -43,6 +43,7 @@ $ docker build -t web .
 or 
 ```
 $ docker pull jainvipin/web
+$ docker tag -f web web
 ```
 
 Similarly build the db image
@@ -53,6 +54,7 @@ $ docker build -t redis -f Dockerfile.redis .
 or 
 ```
 $ docker pull jainvipin/redis
+$ docker tag -f redis redis
 ```
 
 ###### 5. Run contiv-compose and see the policies working
@@ -93,7 +95,7 @@ Now, let's try to verify whether the isolation policy is working as expected
 ```
 $ docker exec -it example_web_1 /bin/bash
 < ** inside container ** >
-$ nc -zvw 1 example_redis 6375-6380
+$ nc -zvw 1 example-redis 6375-6380
 example_redis.dev.default [10.11.1.21] 6380 (?) : Connection timed out
 example_redis.dev.default [10.11.1.21] 6379 (?) open
 example_redis.dev.default [10.11.1.21] 6378 (?) : Connection timed out
@@ -125,7 +127,7 @@ With this now we can go into any of the web tier container and experiment our po
 ```
 $ docker exec -it example_web_3 /bin/bash
 < ** inside container ** >
-$ nc -zvw 1 example_redis 6375-6380
+$ nc -zvw 1 example-redis 6375-6380
 example_redis.dev.default [10.11.1.21] 6380 (?) : Connection timed out
 example_redis.dev.default [10.11.1.21] 6379 (?) open
 example_redis.dev.default [10.11.1.21] 6378 (?) : Connection timed out
@@ -212,7 +214,7 @@ $ contiv-compose up -d
 
 $ docker exec -it example_web_1 /bin/bash
 < ** inside container ** >
-$ nc -zvw 1 example_redis 6375-6380
+$ nc -zvw 1 example-redis 6375-6380
 example_redis.test.default [10.22.1.26] 6380 (?) : Connection timed out
 example_redis.test.default [10.22.1.26] 6379 (?) open
 example_redis.test.default [10.22.1.26] 6376 (?) : Connection timed out
@@ -268,7 +270,7 @@ web:
 redis:
   image: redis
   labels:
-   io.contiv.policy: 'AllPriviliges"
+   io.contiv.policy: "AllPriviliges"
 
 $ contiv-compose up -d
 WARN[0000] Note: This is an experimental alternate implementation of the Compose CLI (https://github.com/docker/compose) 
@@ -313,7 +315,11 @@ $ contiv-compose up -d
 
 $ docker inspect example_web_1 | grep \"IPAddress\"
         "IPAddress": "",
-                "IPAddress": "10.11.2.23",
+                "IPAddress": "10.11.2.6",
+
+$ docker inspect example_redis_1 | grep \"IPAddress\"
+        "IPAddress": "",
+                "IPAddress": "10.11.2.5",
 
 ```
 

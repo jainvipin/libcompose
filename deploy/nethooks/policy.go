@@ -223,8 +223,8 @@ func addOutAcceptAllRule(tenantName, networkName, fromEpgName, policyName string
 	rule := &contivClient.Rule{
 		Action:        "allow",
 		Direction:     "out",
-		FromEndpointGroup: fromEpgName,
-		FromNetwork:       networkName,
+		ToEndpointGroup: fromEpgName,
+		ToNetwork:       networkName,
 		PolicyName:    policyName,
 		Priority:      ruleID,
 		Protocol:      "tcp",
@@ -342,7 +342,7 @@ func applyDefaultPolicy(p *project.Project, polRecs map[string]policyCreateRec) 
 		}
 		policies = append(policies, policyName)
 
-		if err := addDenyAllRule(tenantName, networkName, "", policyName, ruleID); err != nil {
+		if err := addDenyAllRule(tenantName,"", "", policyName, ruleID); err != nil {
 			log.Errorf("Unable to add deny rule. Error %v ", err)
 			return err
 		}
@@ -354,7 +354,7 @@ func applyDefaultPolicy(p *project.Project, polRecs map[string]policyCreateRec) 
 			log.Errorf("Unable to add policy. Error %v", err)
 		}
 		policies = append(policies, policyName)
-		if err := addOutAcceptAllRule(tenantName, networkName, "", policyName, ruleID); err != nil {
+		if err := addOutAcceptAllRule(tenantName,"", "", policyName, ruleID); err != nil {
 			log.Errorf("Unable to add deny rule. Error %v ", err)
 			return err
 		}
@@ -399,7 +399,7 @@ func applyExposePolicy(p *project.Project, expMap map[string][]string, polRecs m
 			}
 			toEpgName := getSvcName(p, toSvcName)
 			policies = append(policies, policyName)
-			if err := addEpg(tenantName, "", toEpgName, policies); err != nil {
+			if err := addEpg(tenantName,networkName, toEpgName, policies); err != nil {
 				log.Errorf("Unable to add epg. Error %v", err)
 				return err
 			}
@@ -411,7 +411,7 @@ func applyExposePolicy(p *project.Project, expMap map[string][]string, polRecs m
 				log.Errorf("Unable to get port number. Error %v ", err)
 			}
 
-			if err = addInAcceptRule(tenantName, networkName, "", policyName, "tcp", pNum, ruleID); err != nil {
+			if err = addInAcceptRule(tenantName,"", "", policyName, "tcp", pNum, ruleID); err != nil {
 				log.Errorf("Unable to add allow rule. Error %v ", err)
 				return err
 			} else {
@@ -540,7 +540,7 @@ func applyInPolicy(p *project.Project, fromSvcName, toSvcName string, polRecs ma
 
 	for _, natPort := range natPorts {
 		pNum, _ := strconv.Atoi(natPort.Port())
-		if err := addInAcceptRule(tenantName, networkName, fromEpgName, policyName, natPort.Proto(), pNum, ruleID); err != nil {
+		if err := addInAcceptRule(tenantName,"",fromEpgName, policyName, natPort.Proto(), pNum, ruleID); err != nil {
 			log.Errorf("Unable to add allow rule. Error %v ", err)
 			return err
 		}

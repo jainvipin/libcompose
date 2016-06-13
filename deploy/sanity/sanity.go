@@ -100,7 +100,7 @@ func stopComposition(projectName string) error {
 
 func verifyPolicy(projectName, portRange, allowedPort, disallowedPort string) error {
 	fromContainer := projectName + "_web_1"
-	toContainer := projectName + "_redis"
+	toContainer := projectName + "-redis"
 	verifyCmd := "docker exec " + fromContainer + " nc -zvw 1 " + toContainer + " " + portRange
 
 	output, err := runCmd(verifyCmd)
@@ -244,7 +244,7 @@ func overridePolicyTest() error {
 	}
 	defer removeTmpFile()
 
-	projectName := "override_policy"
+	projectName := "override-policy"
 	if output, err := runComposition(projectName); err != nil {
 		if !strings.Contains(output, "not allowed on network") {
 			log.Fatalf("Unable to verify invalid network: %s", output)
@@ -280,7 +280,7 @@ func nonDefaultNetworkTest() error {
 	}
 	defer removeTmpFile()
 
-	projectName := "test_net"
+	projectName := "test-net"
 	if output, err := runComposition(projectName); err != nil {
 		log.Errorf("Error running composition: %s", output)
 		return err
@@ -317,7 +317,7 @@ func nonDefaultTenantTest() error {
 	}
 	defer removeTmpFile()
 
-	projectName := "blue_tenant"
+	projectName := "blue-tenant"
 	if output, err := runComposition(projectName); err != nil {
 		log.Errorf("Error running composition: %s", output)
 		return err
@@ -352,7 +352,7 @@ func disallowedNetworkTest() error {
 	}
 	defer removeTmpFile()
 
-	projectName := "invalid_net"
+	projectName := "invalid-net"
 	if output, err := runComposition(projectName); err != nil {
 		if !strings.Contains(output, "not allowed on network") {
 			log.Fatalf("Unable to run composition with invalid network: %s", output)
@@ -383,7 +383,7 @@ func disallowedPolicyTest() error {
 	}
 	defer removeTmpFile()
 
-	projectName := "invalid_policy"
+	projectName := "invalid-policy"
 	if output, err := runComposition(projectName); err != nil {
 		if !strings.Contains(output, "not allowed to use policy") {
 			log.Fatalf("Unable to run composition with invalid policy: %s", output)
@@ -414,7 +414,7 @@ func inconsistentNetworkInfoTest() error {
 	}
 	defer removeTmpFile()
 
-	projectName := "inconsistent_tenant"
+	projectName := "inconsistent-tenant"
 	if _, err := runComposition(projectName); err == nil {
 		log.Fatalf("Successfully ran inconsistent network config")
 	}
@@ -445,7 +445,7 @@ func inconsistentTenantInfoTest() error {
 	}
 	defer removeTmpFile()
 
-	projectName := "inconsistent_tenant"
+	projectName := "inconsistent-tenant"
 	if _, err := runComposition(projectName); err == nil {
 		log.Fatalf("Successfully ran inconsistent tenant config")
 	}
@@ -474,7 +474,7 @@ func customPolicyLabelTest() error {
 	}
 	defer removeTmpFile()
 
-	projectName := "custom_policy_label"
+	projectName := "custom-policy-label"
 	if output, err := runComposition(projectName); err != nil {
 		if !strings.Contains(output, "not allowed on network") {
 			log.Fatalf("Unable to verify invalid network: %s", output)
@@ -512,7 +512,7 @@ func customTenantLabelTest() error {
 	}
 	defer removeTmpFile()
 
-	projectName := "custom_tenant_label"
+	projectName := "custom-tenant-label"
 	if output, err := runComposition(projectName); err != nil {
 		log.Errorf("Error running composition: %s", output)
 		return err
