@@ -405,6 +405,14 @@ func applyExposePolicy(p *project.Project, expMap map[string][]string, polRecs m
 			}
 		}
 
+		if len(spList) > 0 {
+			if err := addDenyAllRule(tenantName, "" , "", policyName, ruleID); err != nil {
+				return err
+			}
+			log.Debugf("Exposed %v : add implicit deny ", policyName)
+			ruleID++
+		}
+
 		for _, portID := range spList {
 			pNum, err := strconv.Atoi(portID)
 			if err != nil {
