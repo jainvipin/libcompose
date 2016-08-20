@@ -6,7 +6,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/libcompose/deploy/ops"
 	"github.com/docker/libcompose/project"
-	"github.com/docker/libcompose/yaml"
 )
 
 const (
@@ -65,7 +64,7 @@ func DeleteNetConfig(p *project.Project) error {
 		log.Debugf("Unable to delete app. Error %v", err)
 	}
 
-	for _, svcName := range p.Configs.Keys() {
+	for _, svcName := range p.ServiceConfigs.Keys() {
 		if err := removeEpg(p, svcName); err != nil {
 			log.Debugf("Unable to remove out-policy for service '%s'. Error %v", svcName, err)
 		}
@@ -109,24 +108,24 @@ func ScaleNetConfig(p *project.Project) error {
 func AutoGenParams(p *project.Project) error {
 	networkName := getNetworkNameFromProject(p)
 	tenantName := getTenantNameFromProject(p)
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
-		if svc.DNS.Len() == 0 {
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
+		if len(svc.DNS) == 0 {
 			dnsAddr, err := getDnsInfo(networkName, tenantName)
 			if err != nil {
 				log.Errorf("error getting dns information for network %s: %s", networkName, err)
 			}
 
-			svc.DNS = yaml.NewStringorslice(dnsAddr)
-			if svc.DNSSearch.Len() == 0 {
+			svc.DNS = []string{dnsAddr}
+			if len(svc.DNSSearch) == 0 {
 				netDomain := networkName + "." + tenantName
 				tenantDomain := tenantName
 
-				svc.DNSSearch = yaml.NewStringorslice(netDomain, tenantDomain)
+				svc.DNSSearch = []string{netDomain, tenantDomain}
 			}
 		}
 
-		svc.Net = getFullSvcName(p, svcName)
+		svc.NetworkMode = getFullSvcName(p, svcName)
 	}
 
 	return nil
@@ -134,9 +133,9 @@ func AutoGenParams(p *project.Project) error {
 
 // Generate labels to tag the services 
 func AutoGenLabels(p *project.Project) error {
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
-		labels := svc.Labels.MapParts()
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
+		labels := svc.Labels
 		if labels == nil {
 			labels = make(map[string]string)
 		}
@@ -149,7 +148,7 @@ func AutoGenLabels(p *project.Project) error {
 		}
 		labels[USER_LABEL] = userId
 
-		svc.Labels = yaml.NewSliceorMap(labels)
+		svc.Labels = labels
 	}
 
 	return nil
@@ -225,8 +224,8 @@ func checkUserCreds(p *project.Project) error {
 func validateProject(p *project.Project) error {
 	netName := getNetworkNameFromProject(p)
 
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
 		if getNetworkName(svc) != netName {
 			log.Errorf("Mismatching networks '%s' vs '%s' for services not allowed",
 				netName, getNetworkName(svc))
@@ -236,8 +235,8 @@ func validateProject(p *project.Project) error {
 
 	tenantName := getTenantNameFromProject(p)
 
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
 		if getTenantName(svc) != tenantName {
 			log.Errorf("Mismatching Tenants '%s' vs '%s' for services not allowed",
 				tenantName, getTenantName(svc))

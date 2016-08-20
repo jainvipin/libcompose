@@ -6,7 +6,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/libcompose/project"
-	"github.com/docker/libcompose/yaml"
 )
 
 func Parse(csvLabels string) (map[string]string, error) {
@@ -32,9 +31,9 @@ func Parse(csvLabels string) (map[string]string, error) {
 }
 
 func Insert(p *project.Project, parts map[string]string) error {
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
-		origParts := svc.Labels.MapParts()
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
+		origParts := svc.Labels
 		if origParts == nil {
 			origParts = make(map[string]string)
 		}
@@ -43,7 +42,7 @@ func Insert(p *project.Project, parts map[string]string) error {
 			origParts[partKey] = partValue
 		}
 		log.Debugf("Updated composition labels for service %s: %#v", svcName, origParts)
-		svc.Labels = yaml.NewSliceorMap(origParts)
+		svc.Labels = origParts
 	}
 
 	return nil

@@ -2,30 +2,31 @@ package app
 
 import (
 	"github.com/Sirupsen/logrus"
-	"github.com/codegangsta/cli"
-	"github.com/docker/libcompose/deploy"
+	"github.com/urfave/cli"
 	"github.com/docker/libcompose/project"
+	"github.com/docker/libcompose/deploy"
 )
 
-func pre_plugin(p *project.Project, context *cli.Context) error {
-	cliLabels := ""
-
-	if cliLabels != "" {
-		if err := deploy.PopulateEnvLabels(p, cliLabels); err != nil {
-			logrus.Fatalf("Unable to insert environment labels. Error %v", err)
-		}
+func PrePlugin (v interface{}, context *cli.Context) error {
+	p, ok := v.(*project.Project)
+	if !ok {
+		logrus.Fatalf("invalid project %v", v)
 	}
-
 	if err := deploy.PreHooks(p, context.Command.Name); err != nil {
-		logrus.Fatalf("Unable to generate network labels. Error %v", err)
+		logrus.Fatalf("Prehook failure - Error %v", err)
 	}
 
-	return nil
+  return nil
 }
 
-func post_plugin(p *project.Project, context *cli.Context) error {
+func PostPlugin(v interface{}, context *cli.Context) error {
+	p, ok := v.(*project.Project)
+	if !ok {
+		logrus.Fatalf("invalid project %v", v)
+	}
+
 	if err := deploy.PostHooks(p, context.Command.Name); err != nil {
-		logrus.Fatalf("Unable to populate dns entries. Error %v", err)
+		logrus.Fatalf("Posthook failure - Error %v", err)
 	}
 	return nil
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/docker/libcompose/deploy/ops"
 	"github.com/docker/libcompose/config"
 	"github.com/docker/libcompose/project"
-	"github.com/docker/libcompose/yaml"
 )
 
 type policyCreateRec struct {
@@ -43,8 +42,8 @@ func getOutPolicyStr(projectName, svcName string) string {
 }
 
 func getTenantNameFromProject(p *project.Project) string {
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
 		return getTenantName(svc)
 	}
 	return ""
@@ -57,7 +56,7 @@ func getTenantName(svc *config.ServiceConfig) string {
 	if tenantLabel == "" {
 		tenantLabel = TENANT_LABEL
 	}
-	if labels := svc.Labels.MapParts(); labels != nil {
+	if labels := svc.Labels; labels != nil {
 		if value, ok := labels[tenantLabel]; ok {
 			tenantName = value
 		}
@@ -66,12 +65,12 @@ func getTenantName(svc *config.ServiceConfig) string {
 }
 
 func getNetworkName(svc *config.ServiceConfig) string {
-	networkName := svc.Net
-	if svc.Net == "" {
+	networkName := svc.NetworkMode
+	if svc.NetworkMode == "" {
 		networkName = NETWORK_DEFAULT
 	}
 
-	if labels := svc.Labels.MapParts(); labels != nil {
+	if labels := svc.Labels; labels != nil {
 		if value, ok := labels[NETWORK_LABEL]; ok {
 			networkName = value
 		}
@@ -80,8 +79,8 @@ func getNetworkName(svc *config.ServiceConfig) string {
 }
 
 func getNetworkNameFromProject(p *project.Project) string {
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
 		return getNetworkName(svc)
 	}
 	return ""
@@ -116,10 +115,10 @@ func getFromEpgName(p *project.Project, fromSvcName string) string {
 func getSvcLinks(p *project.Project) (map[string][]string, error) {
 	links := make(map[string][]string)
 
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
 		log.Debugf("svc %s === %+v ", svcName, svc)
-		svcLinks := svc.Links.Slice()
+		svcLinks := svc.Links
 		log.Debugf("found links for svc '%s' %#v ", svcName, svcLinks)
 		links[svcName] = svcLinks
 	}
@@ -128,10 +127,10 @@ func getSvcLinks(p *project.Project) (map[string][]string, error) {
 }
 
 func clearSvcLinks(p *project.Project) error {
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
-		// if len(svc.Links.Slice()) > 0 {
-		svc.Links = yaml.NewMaporColonSlice([]string{})
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
+		// if len(svc.Links) > 0 {
+		svc.Links = []string{}
 		log.Debugf("clearing links for svc '%s' %#v ", svcName, svc.Links)
 		// }
 	}
@@ -150,8 +149,8 @@ func extractPort(ps string) string {
 func getSvcPorts(p *project.Project) (map[string][]string, error) {
 	sPorts := make(map[string][]string)
 	res := []string{}
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
 		if len(svc.Ports) > 0 {
 			pList := svc.Ports
 			for _, ps := range pList {
@@ -166,8 +165,8 @@ func getSvcPorts(p *project.Project) (map[string][]string, error) {
 }
 
 func clearExposedPorts(p *project.Project) error {
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
 		if len(svc.Expose) > 0 {
 			log.Debugf("svc.Expose: %v svc.Ports %v", svc.Expose, svc.Ports)
 			svc.Expose = []string{}
@@ -260,7 +259,7 @@ func addApp(tenantName string, p *project.Project) error {
 		TenantName: tenantName,
 	}
 
-	for _, svcName := range p.Configs.Keys() {
+	for _, svcName := range p.ServiceConfigs.Keys() {
 		epgKey := getSvcName(p, svcName)
 		app.EndpointGroups = append(app.EndpointGroups, epgKey)
 		log.Debugf("Adding epg to App:%s ", epgKey)
@@ -304,8 +303,8 @@ func addEpg(tenantName, networkName, epgName string, policies []string) error {
 
 func addEpgs(p *project.Project) error {
 	tenantName := getTenantNameFromProject(p)
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
 		networkName := getNetworkName(svc)
 		epgName := getSvcName(p, svcName)
 
@@ -319,8 +318,8 @@ func addEpgs(p *project.Project) error {
 
 func applyDefaultPolicy(p *project.Project, polRecs map[string]policyCreateRec) error {
 	tenantName := getTenantNameFromProject(p)
-	for _, svcName := range p.Configs.Keys() {
-		svc, _ := p.Configs.Get(svcName)
+	for _, svcName := range p.ServiceConfigs.Keys() {
+		svc, _ := p.ServiceConfigs.Get(svcName)
 		networkName := getNetworkName(svc)
 		toEpgName := getSvcName(p, svcName)
 
@@ -385,7 +384,7 @@ func applyExposePolicy(p *project.Project, expMap map[string][]string, polRecs m
 
 	tenantName := getTenantNameFromProject(p)
 	for toSvcName, spList := range expMap {
-		svc, _ := p.Configs.Get(toSvcName)
+		svc, _ := p.ServiceConfigs.Get(toSvcName)
 		networkName := getNetworkName(svc)
 		policyRec := getPolicyRec(toSvcName, polRecs)
 		ruleID := policyRec.nextRuleId
@@ -444,7 +443,7 @@ func getPolicyName(userId string, svc *config.ServiceConfig) (string, error) {
 		policyLabel = NET_ISOLATION_POLICY_LABEL
 	}
 
-	if labels := svc.Labels.MapParts(); labels != nil {
+	if labels := svc.Labels; labels != nil {
 		if value, ok := labels[policyLabel]; ok {
 			policyName = value
 		}
@@ -508,7 +507,7 @@ func getServicePorts(svcName string, svc *config.ServiceConfig) ([]nat.Port, err
 }
 
 func applyInPolicy(p *project.Project, fromSvcName, toSvcName string, polRecs map[string]policyCreateRec) error {
-	svc,_ := p.Configs.Get(toSvcName)
+	svc,_ := p.ServiceConfigs.Get(toSvcName)
 
 	policyRec := getPolicyRec(toSvcName, polRecs)
 	tenantName := getTenantNameFromProject(p)
