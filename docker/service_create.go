@@ -55,6 +55,10 @@ func (s *Service) createContainer(ctx context.Context, namer Namer, oldContainer
 		configWrapper.HostConfig.Binds = util.Merge(configWrapper.HostConfig.Binds, volumeBinds(configWrapper.Config.Volumes, &info))
 	}
 
+	if configWrapper.Config.Hostname == "" {
+		configWrapper.Config.Hostname = containerName
+	}
+
 	logrus.Debugf("Creating container %s %#v", containerName, configWrapper)
 	// FIXME(vdemeester): long-term will be container.Create(…)
 	container, err := composecontainer.Create(ctx, client, containerName, configWrapper.Config, configWrapper.HostConfig, configWrapper.NetworkingConfig)
